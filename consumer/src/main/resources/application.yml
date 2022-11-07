@@ -1,0 +1,15 @@
+spring:
+  kafka:
+    bootstrap-servers:
+      - localhost:9091
+      - localhost:9092
+      - localhost:9093
+    consumer:
+      # объединяем Consumers в группу
+      group-id: random-consumer
+      #  УКазываем, как очередной Consumer, когда будет включен в работу,
+      # должен прочитать данные из Topic
+      # earliest - Указывает, что новый Consumer должен читать записи с самой первой, для данного topic
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer

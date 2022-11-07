@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  #Конфигурация Zookeeper находится в /conf.
+  # Один из способов изменить его - смонтировать ваш конфигурационный файл в качестве тома:
+  #  docker run --name some-zookeeper --restart always -d -v $(pwd)/zoo.cfg:/conf/zoo.cfg zookeeper
+  zookeeper:
+    image: zookeeper:3.4.9
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOO_MY_ID: 1 # уникальный идентификатор сервера Zookeeper
+      ZOO_PORT: 2181  # порт сервера, который открыт в docker контейнере
+      # здесь указывается список Zookeeper servers, один из которых ведущий,
+      # остальные нужны, если ведущий выйдет из строя.
+      # Серверы прослушивают три порта: 2181 для клиентских подключений;
+      # 2888 для последовательных подключений, если они являются лидерами;
+      # 3888 для других серверных подключений на этапе выбора лидера.
+      ZOO_SERVERS: server.1=zookeeper:2888:3888
+    volumes:
+      - ./zk-single-kafka-multiple/zoo/data:/data
+      - ./zk-single-kafka-multiple/zoo/datalog:/datalog
+      - ./zk-single-kafka-multiple/zookeeper/conf:/conf
+
+  kafka_first:
+    image: confluentinc/cp-kafka:5.3.0
+    hostname: kafka_first #имя docker-контейнера, в котором будет развернут 1-й Node Kafka
+    ports:
+      - "9091:9091"
+    environment:
+      # KAFKA_ADVERTISED_LISTENERS - указываем адреса, чтобы клиенты могли правильно подключаться
+      # представляет собой список Listeners, разделенных запятыми, с указанием их хоста/IP и порта.
+      # Это метаданные, которые передаются обратно клиентам.
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka_first:19091,LISTENER_DOCKER_EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9091
+      # определяет пары ключ/значение для протокола безопасности, которые будут использоваться для каждого имени Listeners.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT
+      # Брокеры Kafka обмениваются данными между собой, обычно по внутренней сети
+      # (например, Docker network, AWS VPC и т. Д.). Чтобы определить, какой слушатель
+      # использовать, укажите KAFKA_INTER_BROKER_LISTENER_NAME(inter.broker.listener.name).
+      # Используемый хост / IP должен быть доступен с машины брокера другим пользователям.
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      # Рассказывает Кафке, как связаться с ZooKeeper.
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      # уникальный идентификатор кafka
+      KAFKA_BROKER_ID: 1
+      # Перечисляются пакеты и классы, которые будут логироваться, и указывается уровень логгирования
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+    volumes:
+      - ./zk-single-kafka-multiple/kafka_first/data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+
+  kafka_second:
+    image: confluentinc/cp-kafka:5.3.0
+    hostname: kafka_second
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka_second:19092,LISTENER_DOCKER_EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_BROKER_ID: 2
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+    volumes:
+      - ./zk-single-kafka-multiple/kafka_second/data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+
+  kafka_third:
+    image: confluentinc/cp-kafka:5.3.0
+    hostname: kafka_third
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka_third:19093,LISTENER_DOCKER_EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_BROKER_ID: 3
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+    volumes:
+      - ./zk-single-kafka-multiple/kafka_third/data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+
+  # В этой секции описывается конфигурация контейнера, через который можно управлять через GUI, узлами Kafka
+  manager:
+    image: sheepkiller/kafka-manager
+    ports:
+      - "9000:9000"
+    environment:
+      - ZK_HOSTS=zookeeper:2181
+    depends_on:
+      - zookeeper

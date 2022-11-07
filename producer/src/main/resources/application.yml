@@ -1,0 +1,17 @@
+spring:
+  kafka:
+    # здесь указывается один или несколько kafka-брокеров вашего кластера
+    # ранее было создано 3 брокера
+    bootstrap-servers:
+      - localhost:9091
+      - localhost:9092
+      - localhost:9093
+    template:
+      # это свойство, которое мы определяем для нашего Topic, которая будет
+      # темой по умолчанию
+      default-topic: random-number
+    # Указываем класс, который будет сериализовать данные сообщения,
+    # которое Producer будет публиковать в брокер
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
